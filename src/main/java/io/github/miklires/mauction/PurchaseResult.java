@@ -1,0 +1,1 @@
+package io.github.miklires.mauction;import java.util.UUID;public record PurchaseResult(Status status,Listing listing,UUID transactionId){public enum Status{RESERVED,NOT_FOUND,NOT_ACTIVE,OWN_LISTING}public static PurchaseResult rejected(Status status){return new PurchaseResult(status,null,null);}}
