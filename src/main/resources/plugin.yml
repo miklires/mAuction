@@ -1,0 +1,14 @@
+name: mAuction
+version: ${version}
+main: io.github.miklires.mauction.MAuctionPlugin
+api-version: '26.2'
+author: miklires
+description: Transactional player auction house
+folia-supported: true
+depend: [Vault]
+libraries: [com.h2database:h2:2.3.232]
+commands:
+  auction: { description: Open and manage the auction, usage: /auction [sell <price>|cancel <id>|reload], aliases: [ah] }
+permissions:
+  mauction.use: { default: true }
+  mauction.admin: { default: op }
