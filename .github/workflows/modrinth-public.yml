@@ -38,8 +38,8 @@ jobs:
           else
             echo "Version $VERSION_NUMBER already exists; upload skipped"
           fi
-          patch=$(jq -nc --rawfile body README.md --arg description "$SUMMARY" --arg source "$SOURCE_URL" --arg issues "$SOURCE_URL/issues" --arg license "$SOURCE_URL/blob/main/LICENSE" --argjson categories "$CATEGORIES" --argjson additional "$ADDITIONAL_CATEGORIES" '{description:$description,body:$body,categories:$categories,additional_categories:$additional,source_url:$source,issues_url:$issues,license_id:"MIT",license_url:$license,client_side:"unsupported",server_side:"required"}')
-          curl -fsS -X PATCH -H "$auth" -H "$agent" -H 'Content-Type: application/json' --data "$patch" "$api/project/$project_id"
+          patch=$(jq -nc --rawfile body README.md --arg description "$SUMMARY" --arg source "$SOURCE_URL" --arg issues "$SOURCE_URL/issues" --arg license "$SOURCE_URL/blob/main/LICENSE" --argjson categories "$CATEGORIES" --argjson additional "$ADDITIONAL_CATEGORIES" '{description:$description,body:$body,categories:$categories,additional_categories:$additional,source_url:$source,issues_url:$issues,license_id:"MIT",license_url:$license}')
+          curl --fail-with-body -sS -X PATCH -H "$auth" -H "$agent" -H 'Content-Type: application/json' --data "$patch" "$api/project/$project_id"
           disclosure=$(jq -nc '{set:[{type:"telemetry",consent:"opt_out",data_collected:["Anonymous server usage statistics through bStats"]}],remove:[]}')
           curl -fsS -X PATCH -H "$auth" -H "$agent" -H 'Content-Type: application/json' --data "$disclosure" "https://api.modrinth.com/v3/project/$project_id/disclosures"
           result=$(curl -fsS -H "$auth" -H "$agent" "$api/project/$project_id")
