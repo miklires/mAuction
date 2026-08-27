@@ -7,6 +7,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.Comparator;
+import java.util.ArrayList;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.milkbowl.vault.economy.Economy;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
@@ -42,6 +45,8 @@ public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor,
         PluginCommand command = Objects.requireNonNull(getCommand("auction"));
         command.setExecutor(this); command.setTabCompleter(this);
         getServer().getPluginManager().registerEvents(this, this);
+        long refresh=Math.clamp(getConfig().getLong("gui.live-refresh-ticks",20),10,200);
+        getServer().getGlobalRegionScheduler().runAtFixedRate(this,task->refreshOpenMenus(),refresh,refresh);
         if (getConfig().getBoolean("metrics.enabled", true)) { int id=Math.max(0,getConfig().getInt("metrics.bstats-id",27943)); if(id>0)new Metrics(this,id); }
     }
 
@@ -51,9 +56,11 @@ public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor,
         if (!(sender instanceof Player player)) { sender.sendMessage(messages.text("player-only")); return true; }
         if (!player.hasPermission("mauction.use")) { player.sendMessage(messages.text("no-permission")); return true; }
         if (!ready) { player.sendMessage(messages.text("loading")); return true; }
-        if (args.length == 0) { open(player); return true; }
+        if (args.length == 0) { open(player,"",0,AuctionRepository.SortOrder.NEWEST,false); return true; }
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "sell" -> { if(args.length<2){player.sendMessage(messages.text("usage-sell"));return true;} sell(player,args[1]); }
+            case "search" -> {if(args.length<2){player.sendMessage(messages.text("usage-search"));return true;}open(player,String.join(" ",java.util.Arrays.copyOfRange(args,1,args.length)),0,AuctionRepository.SortOrder.NEWEST,false);}
+            case "selling" -> open(player,"",0,AuctionRepository.SortOrder.NEWEST,true);
             case "cancel" -> { if(args.length<2){player.sendMessage(messages.text("usage-cancel"));return true;} cancel(player,args[1]); }
             case "reload" -> { if(!player.hasPermission("mauction.admin")){player.sendMessage(messages.text("no-permission"));return true;} reloadConfig();messages.reload();player.sendMessage(messages.text("reloaded")); }
             default -> player.sendMessage(messages.text("usage"));
@@ -73,7 +80,15 @@ public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor,
         } catch (IllegalArgumentException error) { player.sendMessage(messages.text("invalid-id")); }
     }
 
-    private void open(Player player) { repository.active(45).thenAccept(list -> player.getScheduler().execute(this,()->player.openInventory(new AuctionMenu(messages.text("gui-title"),list,messages).getInventory()),null,1)); }
+    private void open(Player player,String query,int page,AuctionRepository.SortOrder sort,boolean mine) {
+        repository.active(Math.clamp(getConfig().getInt("gui.maximum-loaded-listings",1000),45,10000)).thenAccept(found -> player.getScheduler().execute(this,()->{
+            List<Listing> list=new ArrayList<>(found);if(mine)list.removeIf(value->!value.seller().equals(player.getUniqueId()));
+            String needle=query.toLowerCase(Locale.ROOT).strip();if(!needle.isEmpty())list.removeIf(value->!matches(value,needle));
+            Comparator<Listing> comparator=switch(sort){case PRICE_LOW->Comparator.comparingDouble(Listing::price);case PRICE_HIGH->Comparator.comparingDouble(Listing::price).reversed();case EXPIRING->Comparator.comparing(Listing::expiresAt);default->Comparator.comparing(Listing::createdAt).reversed();};list.sort(comparator);
+            player.openInventory(new AuctionMenu(messages.text(mine?"gui-title-mine":"gui-title"),list,query,page,sort,mine,messages).getInventory());
+        },null,1));
+    }
+    private boolean matches(Listing listing,String needle){ItemStack item=ItemCodec.decode(listing.item());String material=item.getType().getKey().getKey().replace('_',' ');String display=item.hasItemMeta()&&item.getItemMeta().hasDisplayName()?PlainTextComponentSerializer.plainText().serialize(item.getItemMeta().displayName()):"";return material.contains(needle)||display.toLowerCase(Locale.ROOT).contains(needle)||listing.sellerName().toLowerCase(Locale.ROOT).contains(needle);}
 
     private void sell(Player player,String raw) {
         double price;
@@ -89,9 +104,9 @@ public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor,
         },null,1));
     }
 
-    @EventHandler(ignoreCancelled=true) public void click(InventoryClickEvent event){if(!(event.getInventory().getHolder() instanceof AuctionMenu menu))return;event.setCancelled(true);if(!(event.getWhoClicked() instanceof Player player)||event.getClickedInventory()!=event.getInventory())return;menu.listing(event.getSlot()).ifPresent(listing->{player.closeInventory();buy(player,listing.id());});}
+    @EventHandler(ignoreCancelled=true) public void click(InventoryClickEvent event){if(!(event.getInventory().getHolder() instanceof AuctionMenu menu))return;event.setCancelled(true);if(!(event.getWhoClicked() instanceof Player player)||event.getClickedInventory()!=event.getInventory())return;int slot=event.getSlot();if(slot==AuctionMenu.PREVIOUS&&menu.page()>0){open(player,menu.query(),menu.page()-1,menu.sort(),menu.mine());return;}if(slot==AuctionMenu.NEXT&&menu.page()+1<menu.pages()){open(player,menu.query(),menu.page()+1,menu.sort(),menu.mine());return;}if(slot==AuctionMenu.REFRESH){open(player,menu.query(),menu.page(),menu.sort(),menu.mine());return;}if(slot==AuctionMenu.SORT){menu.nextSort();open(player,menu.query(),0,menu.sort(),menu.mine());return;}menu.listing(slot).ifPresent(listing->{if(listing.seller().equals(player.getUniqueId()))cancel(player,listing.id().toString());else buy(player,listing.id());});}
 
-    private void buy(Player buyer,UUID id){repository.reserve(id,buyer.getUniqueId(),buyer.getName()).thenAccept(result->global(()->{if(result.status()!=PurchaseResult.Status.RESERVED){buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("unavailable","status",result.status())),null,1);return;}Listing listing=result.listing();if(!economy.has(buyer,listing.price())){repository.release(result.transactionId(),listing.id());buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("insufficient-funds")),null,1);return;}var withdrawal=economy.withdrawPlayer(buyer,listing.price());if(!withdrawal.transactionSuccess()){repository.release(result.transactionId(),listing.id());buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("payment-rejected")),null,1);return;}repository.stage(result.transactionId(),"MONEY_WITHDRAWN");double tax=Math.clamp(getConfig().getDouble("economy.tax-percent",5),0,100);double net=listing.price()*(1-tax/100);var deposit=economy.depositPlayer(Bukkit.getOfflinePlayer(listing.seller()),net);if(!deposit.transactionSuccess()){economy.depositPlayer(buyer,listing.price());repository.release(result.transactionId(),listing.id());buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("seller-payment-failed")),null,1);return;}repository.stage(result.transactionId(),"SELLER_PAID").thenCompose(v->repository.sold(result.transactionId(),listing.id())).thenRun(()->buyer.getScheduler().execute(this,()->deliverPurchase(buyer,result.transactionId(),listing),null,1));}));}
+    private void buy(Player buyer,UUID id){repository.reserve(id,buyer.getUniqueId(),buyer.getName()).thenAccept(result->global(()->{if(result.status()!=PurchaseResult.Status.RESERVED){markStale(id,ListingState.SOLD);buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("unavailable","status",result.status())),null,1);return;}Listing listing=result.listing();markStale(id,ListingState.RESERVED);if(!economy.has(buyer,listing.price())){repository.release(result.transactionId(),listing.id());buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("insufficient-funds")),null,1);return;}var withdrawal=economy.withdrawPlayer(buyer,listing.price());if(!withdrawal.transactionSuccess()){repository.release(result.transactionId(),listing.id());buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("payment-rejected")),null,1);return;}repository.stage(result.transactionId(),"MONEY_WITHDRAWN");double tax=Math.clamp(getConfig().getDouble("economy.tax-percent",5),0,100);double net=listing.price()*(1-tax/100);var deposit=economy.depositPlayer(Bukkit.getOfflinePlayer(listing.seller()),net);if(!deposit.transactionSuccess()){economy.depositPlayer(buyer,listing.price());repository.release(result.transactionId(),listing.id());buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("seller-payment-failed")),null,1);return;}repository.stage(result.transactionId(),"SELLER_PAID").thenCompose(v->repository.sold(result.transactionId(),listing.id())).thenRun(()->buyer.getScheduler().execute(this,()->deliverPurchase(buyer,result.transactionId(),listing),null,1));}));}
 
     @EventHandler public void join(PlayerJoinEvent event){if(ready)recover(event.getPlayer());}
     private void recover(Player player){repository.returns(player.getUniqueId()).thenAccept(list->player.getScheduler().execute(this,()->list.forEach(value->deliverReturn(player,value)),null,1));repository.pending(player.getUniqueId()).thenAccept(list->player.getScheduler().execute(this,()->list.forEach(value->deliverPurchase(player,value.transactionId(),value.listing())),null,1));}
@@ -99,5 +114,7 @@ public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor,
     private void deliverPurchase(Player buyer,UUID tx,Listing listing){if(!buyer.isOnline())return;give(buyer,ItemCodec.decode(listing.item()));repository.stage(tx,"DELIVERED");buyer.sendMessage(messages.text("purchased","price",listing.price()));}
     private void give(Player player,ItemStack item){Map<Integer,ItemStack>left=player.getInventory().addItem(item);left.values().forEach(value->player.getWorld().dropItemNaturally(player.getLocation(),value));}
     private void global(Runnable task){getServer().getGlobalRegionScheduler().execute(this,task);}
-    @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[]args){return args.length==1?List.of("sell","cancel","reload").stream().filter(v->v.startsWith(args[0].toLowerCase(Locale.ROOT))).toList():List.of();}
+    private void refreshOpenMenus(){for(Player player:Bukkit.getOnlinePlayers())if(player.getOpenInventory().getTopInventory().getHolder()instanceof AuctionMenu menu)repository.states(menu.ids()).thenAccept(states->player.getScheduler().execute(this,()->states.forEach((id,state)->{if(state!=ListingState.ACTIVE)menu.stale(id,state);}),null,1));}
+    private void markStale(UUID id,ListingState state){for(Player player:Bukkit.getOnlinePlayers())if(player.getOpenInventory().getTopInventory().getHolder()instanceof AuctionMenu menu)player.getScheduler().execute(this,()->menu.stale(id,state),null,1);}
+    @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[]args){return args.length==1?List.of("sell","search","selling","cancel","reload").stream().filter(v->v.startsWith(args[0].toLowerCase(Locale.ROOT))).toList():List.of();}
 }

@@ -8,7 +8,7 @@ folia-supported: true
 depend: [Vault]
 libraries: [com.h2database:h2:2.3.232]
 commands:
-  auction: { description: Open and manage the auction, usage: /auction [sell <price>|cancel <id>|reload], aliases: [ah] }
+  auction: { description: Open and manage the auction, usage: /auction [search <item>|sell <price>|selling|cancel <id>|reload], aliases: [ah] }
 permissions:
   mauction.use: { default: true }
   mauction.admin: { default: op }

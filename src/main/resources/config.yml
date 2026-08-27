@@ -21,6 +21,10 @@ economy:
 gui:
   # The visible title is translated through lang/<language>.yml.
   title: ""
+  # Open menus verify their visible listing states every 20 ticks by default.
+  live-refresh-ticks: 20
+  # Safety cap for an individual browse/search request.
+  maximum-loaded-listings: 1000
 
 metrics:
   enabled: true
