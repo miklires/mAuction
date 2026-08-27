@@ -22,16 +22,19 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor, TabCompleter, Listener {
     private AuctionRepository repository;
     private Economy economy;
     private Messages messages;
     private volatile boolean ready;
+    private final Map<UUID,Long> sellCooldowns=new ConcurrentHashMap<>();
 
     @Override public void onEnable() {
         saveDefaultConfig();
@@ -92,15 +95,17 @@ public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor,
 
     private void sell(Player player,String raw) {
         double price;
-        try { price=Double.parseDouble(raw);double min=Math.max(.01,getConfig().getDouble("price.minimum",1));double max=Math.max(min,getConfig().getDouble("price.maximum",1_000_000_000));if(!Double.isFinite(price)||price<min||price>max)throw new NumberFormatException(); }
+        try { price=PriceParser.parse(raw);double min=Math.max(.01,getConfig().getDouble("price.minimum",1));double max=Math.max(min,getConfig().getDouble("price.maximum",1_000_000_000));if(price<min||price>max)throw new NumberFormatException(); }
         catch(NumberFormatException error){player.sendMessage(messages.text("invalid-price"));return;}
+        long now=System.currentTimeMillis(),cooldown=Math.clamp(getConfig().getLong("listing.sell-cooldown-seconds",2),0,60)*1000;Long last=sellCooldowns.get(player.getUniqueId());if(last!=null&&now-last<cooldown){player.sendMessage(messages.text("sell-cooldown","seconds",Math.max(1,(cooldown-(now-last)+999)/1000)));return;}
         repository.activeCount(player.getUniqueId()).thenAccept(count -> player.getScheduler().execute(this,()->{
             int limit=Math.clamp(getConfig().getInt("listing.limit-per-player",10),1,100);
             if(count>=limit){player.sendMessage(messages.text("listing-limit","limit",limit));return;}
             ItemStack held=player.getInventory().getItemInMainHand();if(held.getType().isAir()){player.sendMessage(messages.text("hold-item"));return;}
-            ItemStack item=held.clone();player.getInventory().setItemInMainHand(null);
+            if(getConfig().getStringList("listing.blocked-materials").stream().anyMatch(value->value.equalsIgnoreCase(held.getType().name()))){player.sendMessage(messages.text("blocked-item"));return;}
+            ItemStack item=held.clone();byte[] encoded=ItemCodec.encode(item);int maxBytes=Math.clamp(getConfig().getInt("listing.maximum-serialized-bytes",1048576),65536,4194304);if(encoded.length>maxBytes){player.sendMessage(messages.text("item-too-large"));return;}player.getInventory().setItemInMainHand(null);sellCooldowns.put(player.getUniqueId(),System.currentTimeMillis());
             long hours=Math.clamp(getConfig().getLong("listing.duration-hours",48),1,720);Instant expires=Instant.now().plus(Duration.ofHours(hours));
-            repository.create(player.getUniqueId(),player.getName(),ItemCodec.encode(item),price,expires).whenComplete((listing,error)->player.getScheduler().execute(this,()->{if(error!=null){give(player,item);player.sendMessage(messages.text("create-failed"));}else player.sendMessage(messages.text("created","id",listing.id()));},null,1));
+            repository.create(player.getUniqueId(),player.getName(),encoded,price,expires).whenComplete((listing,error)->player.getScheduler().execute(this,()->{if(error!=null){give(player,item);player.sendMessage(messages.text("create-failed"));}else player.sendMessage(messages.text("created","id",listing.id()));},null,1));
         },null,1));
     }
 
@@ -108,6 +113,7 @@ public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor,
 
     private void buy(Player buyer,UUID id){repository.reserve(id,buyer.getUniqueId(),buyer.getName()).thenAccept(result->global(()->{if(result.status()!=PurchaseResult.Status.RESERVED){markStale(id,ListingState.SOLD);buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("unavailable","status",result.status())),null,1);return;}Listing listing=result.listing();markStale(id,ListingState.RESERVED);if(!economy.has(buyer,listing.price())){repository.release(result.transactionId(),listing.id());buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("insufficient-funds")),null,1);return;}var withdrawal=economy.withdrawPlayer(buyer,listing.price());if(!withdrawal.transactionSuccess()){repository.release(result.transactionId(),listing.id());buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("payment-rejected")),null,1);return;}repository.stage(result.transactionId(),"MONEY_WITHDRAWN");double tax=Math.clamp(getConfig().getDouble("economy.tax-percent",5),0,100);double net=listing.price()*(1-tax/100);var deposit=economy.depositPlayer(Bukkit.getOfflinePlayer(listing.seller()),net);if(!deposit.transactionSuccess()){economy.depositPlayer(buyer,listing.price());repository.release(result.transactionId(),listing.id());buyer.getScheduler().execute(this,()->buyer.sendMessage(messages.text("seller-payment-failed")),null,1);return;}repository.stage(result.transactionId(),"SELLER_PAID").thenCompose(v->repository.sold(result.transactionId(),listing.id())).thenRun(()->buyer.getScheduler().execute(this,()->deliverPurchase(buyer,result.transactionId(),listing),null,1));}));}
 
+    @EventHandler(ignoreCancelled=true)public void drag(InventoryDragEvent event){if(event.getInventory().getHolder()instanceof AuctionMenu&&event.getRawSlots().stream().anyMatch(slot->slot<event.getInventory().getSize()))event.setCancelled(true);}
     @EventHandler public void join(PlayerJoinEvent event){if(ready)recover(event.getPlayer());}
     private void recover(Player player){repository.returns(player.getUniqueId()).thenAccept(list->player.getScheduler().execute(this,()->list.forEach(value->deliverReturn(player,value)),null,1));repository.pending(player.getUniqueId()).thenAccept(list->player.getScheduler().execute(this,()->list.forEach(value->deliverPurchase(player,value.transactionId(),value.listing())),null,1));}
     private void deliverReturn(Player player,Listing listing){if(!player.isOnline())return;give(player,ItemCodec.decode(listing.item()));repository.returned(listing.id(),listing.seller());player.sendMessage(messages.text("returned","id",listing.id()));}

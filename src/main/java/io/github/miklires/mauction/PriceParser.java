@@ -1,0 +1,3 @@
+package io.github.miklires.mauction;
+import java.util.Locale;
+final class PriceParser{private PriceParser(){}static double parse(String raw){String value=raw.strip().toLowerCase(Locale.ROOT).replace("_","");double multiplier=1;if(value.endsWith("k")){multiplier=1_000;value=value.substring(0,value.length()-1);}else if(value.endsWith("m")){multiplier=1_000_000;value=value.substring(0,value.length()-1);}else if(value.endsWith("b")){multiplier=1_000_000_000;value=value.substring(0,value.length()-1);}double result=Double.parseDouble(value)*multiplier;if(!Double.isFinite(result))throw new NumberFormatException("Non-finite price");return result;}}

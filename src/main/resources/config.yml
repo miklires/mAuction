@@ -9,6 +9,9 @@ listing:
   limit-per-player: 10
   # Clamped to 1..720 hours (30 days).
   duration-hours: 48
+  sell-cooldown-seconds: 2
+  maximum-serialized-bytes: 1048576
+  blocked-materials: [BEDROCK, BARRIER, COMMAND_BLOCK, CHAIN_COMMAND_BLOCK, REPEATING_COMMAND_BLOCK, STRUCTURE_BLOCK, JIGSAW]
 
 price:
   minimum: 1.0
