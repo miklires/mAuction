@@ -1,4 +1,27 @@
-listing-limit: 10
-listing-duration-hours: 48
-tax-percent: 5.0
-gui-title: "Аукцион"
+# mAuction uses a local H2 database and requires Vault plus an economy provider.
+config-version: 1
+
+# Bundled languages: en_US and ru_RU. Unknown values fall back to en_US.
+language: en_US
+
+listing:
+  # Clamped to 1..100 at runtime.
+  limit-per-player: 10
+  # Clamped to 1..720 hours (30 days).
+  duration-hours: 48
+
+price:
+  minimum: 1.0
+  maximum: 1000000000.0
+
+economy:
+  # Clamped to 0..100 so a bad value cannot mint money or charge a negative payout.
+  tax-percent: 5.0
+
+gui:
+  # The visible title is translated through lang/<language>.yml.
+  title: ""
+
+metrics:
+  enabled: true
+  bstats-id: 27943
