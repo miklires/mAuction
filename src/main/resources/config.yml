@@ -28,6 +28,7 @@ gui:
   # Open menus verify their visible listing states every 20 ticks by default.
   live-refresh-ticks: 20
   page-size: 45
+  purchase-confirmation: true
 
 transactions:
   reservation-timeout-seconds: 300

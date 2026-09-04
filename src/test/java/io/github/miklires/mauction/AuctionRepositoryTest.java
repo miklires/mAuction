@@ -76,6 +76,7 @@ class AuctionRepositoryTest {
         PurchaseResult first=repo.reserve(stale.id(),UUID.randomUUID(),"First").join();
         PurchaseResult second=repo.reserve(uncertain.id(),UUID.randomUUID(),"Second").join();
         assertTrue(repo.beginWithdrawal(second.transactionId()).join());
+        assertEquals(1,repo.auditSummary().join().withdrawalStarted());
         assertEquals(1,repo.maintenance(Instant.now().plusSeconds(1),Instant.EPOCH).join());
         assertEquals(PurchaseResult.Status.RESERVED,repo.reserve(stale.id(),UUID.randomUUID(),"Next").join().status());
         assertEquals(PurchaseResult.Status.NOT_ACTIVE,repo.reserve(uncertain.id(),UUID.randomUUID(),"Blocked").join().status());
