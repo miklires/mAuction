@@ -25,8 +25,6 @@ final class AuctionConfig {
         config.set("economy.tax-percent", finite(config.getDouble("economy.tax-percent", 5.0), 0.0, 100.0, 5.0));
         bounded(config, "economy.fraction-digits", 0, 6, 2); bounded(config, "gui.live-refresh-ticks", 10, 200, 20); bounded(config, "gui.page-size", 9, 45, 45);
         bounded(config, "transactions.reservation-timeout-seconds", 30, 3600, 300); bounded(config, "transactions.audit-retention-days", 1, 3650, 180);
-        String project = config.getString("updates.modrinth-project-id", "mAuction");
-        if (project == null || !project.matches("[A-Za-z0-9_-]{3,64}")) config.set("updates.modrinth-project-id", "mAuction");
         plugin.saveConfig();
     }
     private void normalizeMaterials(FileConfiguration config) {

@@ -11,4 +11,4 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew && ./gradlew clean build
       - uses: actions/upload-artifact@v4
-        with: { name: mAuction, path: build/libs/mAuction-*.jar }
+        with: { name: mAuction-1.2.0, path: build/libs/mAuction-1.2.0.jar }

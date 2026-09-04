@@ -37,7 +37,3 @@ transactions:
 metrics:
   enabled: true
   bstats-id: 27943
-
-updates:
-  enabled: true
-  modrinth-project-id: "mAuction"

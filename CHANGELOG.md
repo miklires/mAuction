@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 - 2026-09-04
+
+- Added database-side search, sorting, pagination, seller-limit enforcement, indexes, and schema versioning.
+- Added purchase confirmation and `/ah collect` for pending item and payout recovery.
+- Added journaled withdrawal, payout, and delivery stages with restart-safe reservation maintenance.
+- Added append-only transaction events and `/ah audit` for uncertain external-operation stages.
+- Replaced new item storage with Paper byte serialization and retained a bounded legacy migration reader.
+- Added strict configuration validation, exact locale selection, corrupt-item handling, and safe full-inventory behavior.
+
 ## 1.1.0 - 2026-08-27
 
 - Added `/ah search <name>`, `/ah selling`, pagination, and sorting.

@@ -1,5 +1,5 @@
 plugins { java; id("com.gradleup.shadow") version "9.0.0"; id("com.modrinth.minotaur") version "2.9.0" }
-group="io.github.miklires";version="1.1.0"
+group="io.github.miklires";version="1.2.0"
 java { toolchain.languageVersion.set(JavaLanguageVersion.of(25)) }
 repositories { mavenCentral();maven("https://repo.papermc.io/repository/maven-public/");maven("https://jitpack.io") }
 dependencies { compileOnly("io.papermc.paper:paper-api:26.2.build.112-stable");compileOnly("com.github.MilkBowl:VaultAPI:1.7.1");compileOnly("com.h2database:h2:2.3.232");implementation("org.bstats:bstats-bukkit:3.1.0");testImplementation(platform("org.junit:junit-bom:5.11.4"));testImplementation("org.junit.jupiter:junit-jupiter");testImplementation("com.h2database:h2:2.3.232");testRuntimeOnly("org.junit.platform:junit-platform-launcher") }
