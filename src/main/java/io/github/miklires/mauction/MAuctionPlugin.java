@@ -86,29 +86,26 @@ public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor,
     }
 
     private void open(Player player,String query,int page,AuctionRepository.SortOrder sort,boolean mine) {
-        repository.active(Math.clamp(getConfig().getInt("gui.maximum-loaded-listings",1000),45,10000)).thenAccept(found -> player.getScheduler().execute(this,()->{
-            List<Listing> list=new ArrayList<>(found);if(mine)list.removeIf(value->!value.seller().equals(player.getUniqueId()));
-            String needle=query.toLowerCase(Locale.ROOT).strip();if(!needle.isEmpty())list.removeIf(value->!matches(value,needle));
-            Comparator<Listing> comparator=switch(sort){case PRICE_LOW->Comparator.comparingDouble(Listing::price);case PRICE_HIGH->Comparator.comparingDouble(Listing::price).reversed();case EXPIRING->Comparator.comparing(Listing::expiresAt);default->Comparator.comparing(Listing::createdAt).reversed();};list.sort(comparator);
-            player.openInventory(new AuctionMenu(messages.text(mine?"gui-title-mine":"gui-title"),list,query,page,sort,mine,messages).getInventory());
+        int pageSize=Math.clamp(getConfig().getInt("gui.page-size",45),9,45);
+        repository.browse(query,mine?player.getUniqueId():null,sort,page,pageSize).whenComplete((found,error)->player.getScheduler().execute(this,()->{
+            if(error!=null){player.sendMessage(messages.text("browse-failed"));return;}
+            player.openInventory(new AuctionMenu(messages.text(mine?"gui-title-mine":"gui-title"),found.listings(),found.total(),query,found.page(),found.pages(),sort,mine,messages).getInventory());
         },null,1));
     }
-    private boolean matches(Listing listing,String needle){ItemStack item=ItemCodec.decode(listing.item());String material=item.getType().getKey().getKey().replace('_',' ');String display=item.hasItemMeta()&&item.getItemMeta().hasDisplayName()?PlainTextComponentSerializer.plainText().serialize(item.getItemMeta().displayName()):"";return material.contains(needle)||display.toLowerCase(Locale.ROOT).contains(needle)||listing.sellerName().toLowerCase(Locale.ROOT).contains(needle);}
 
     private void sell(Player player,String raw) {
         double price;
         try { price=PriceParser.parse(raw);double min=Math.max(.01,getConfig().getDouble("price.minimum",1));double max=Math.max(min,getConfig().getDouble("price.maximum",1_000_000_000));if(price<min||price>max)throw new NumberFormatException(); }
         catch(NumberFormatException error){player.sendMessage(messages.text("invalid-price"));return;}
         long now=System.currentTimeMillis(),cooldown=Math.clamp(getConfig().getLong("listing.sell-cooldown-seconds",2),0,60)*1000;Long last=sellCooldowns.get(player.getUniqueId());if(last!=null&&now-last<cooldown){player.sendMessage(messages.text("sell-cooldown","seconds",Math.max(1,(cooldown-(now-last)+999)/1000)));return;}
-        repository.activeCount(player.getUniqueId()).thenAccept(count -> player.getScheduler().execute(this,()->{
-            int limit=Math.clamp(getConfig().getInt("listing.limit-per-player",10),1,100);
-            if(count>=limit){player.sendMessage(messages.text("listing-limit","limit",limit));return;}
-            ItemStack held=player.getInventory().getItemInMainHand();if(held.getType().isAir()){player.sendMessage(messages.text("hold-item"));return;}
+        int limit=Math.clamp(getConfig().getInt("listing.limit-per-player",10),1,100);
+        ItemStack held=player.getInventory().getItemInMainHand();if(held.getType().isAir()){player.sendMessage(messages.text("hold-item"));return;}
             if(getConfig().getStringList("listing.blocked-materials").stream().anyMatch(value->value.equalsIgnoreCase(held.getType().name()))){player.sendMessage(messages.text("blocked-item"));return;}
-            ItemStack item=held.clone();byte[] encoded=ItemCodec.encode(item);int maxBytes=Math.clamp(getConfig().getInt("listing.maximum-serialized-bytes",1048576),65536,4194304);if(encoded.length>maxBytes){player.sendMessage(messages.text("item-too-large"));return;}player.getInventory().setItemInMainHand(null);sellCooldowns.put(player.getUniqueId(),System.currentTimeMillis());
+            ItemStack item=held.clone();byte[] encoded;try{encoded=ItemCodec.encode(item);}catch(IllegalArgumentException error){player.sendMessage(messages.text("item-invalid"));return;}int maxBytes=Math.clamp(getConfig().getInt("listing.maximum-serialized-bytes",1048576),65536,4194304);if(encoded.length>maxBytes){player.sendMessage(messages.text("item-too-large"));return;}player.getInventory().setItemInMainHand(null);sellCooldowns.put(player.getUniqueId(),System.currentTimeMillis());
             long hours=Math.clamp(getConfig().getLong("listing.duration-hours",48),1,720);Instant expires=Instant.now().plus(Duration.ofHours(hours));
-            repository.create(player.getUniqueId(),player.getName(),encoded,price,expires).whenComplete((listing,error)->player.getScheduler().execute(this,()->{if(error!=null){give(player,item);player.sendMessage(messages.text("create-failed"));}else player.sendMessage(messages.text("created","id",listing.id()));},null,1));
-        },null,1));
+            String display=item.hasItemMeta()&&item.getItemMeta().hasDisplayName()?PlainTextComponentSerializer.plainText().serialize(item.getItemMeta().displayName()):"";
+            String search=item.getType().getKey().getKey().replace('_',' ')+" "+display+" "+player.getName();
+            repository.createLimited(player.getUniqueId(),player.getName(),encoded,price,expires,search,limit).whenComplete((listing,error)->player.getScheduler().execute(this,()->{if(error!=null){give(player,item);player.sendMessage(messages.text("create-failed"));}else if(listing.isEmpty()){give(player,item);player.sendMessage(messages.text("listing-limit","limit",limit));}else player.sendMessage(messages.text("created","id",listing.get().id()));},null,1));
     }
 
     @EventHandler(ignoreCancelled=true) public void click(InventoryClickEvent event){if(!(event.getInventory().getHolder() instanceof AuctionMenu menu))return;event.setCancelled(true);if(!(event.getWhoClicked() instanceof Player player)||event.getClickedInventory()!=event.getInventory())return;int slot=event.getSlot();if(slot==AuctionMenu.PREVIOUS&&menu.page()>0){open(player,menu.query(),menu.page()-1,menu.sort(),menu.mine());return;}if(slot==AuctionMenu.NEXT&&menu.page()+1<menu.pages()){open(player,menu.query(),menu.page()+1,menu.sort(),menu.mine());return;}if(slot==AuctionMenu.REFRESH){open(player,menu.query(),menu.page(),menu.sort(),menu.mine());return;}if(slot==AuctionMenu.SORT){menu.nextSort();open(player,menu.query(),0,menu.sort(),menu.mine());return;}menu.listing(slot).ifPresent(listing->{if(listing.seller().equals(player.getUniqueId()))cancel(player,listing.id().toString());else buy(player,listing.id());});}
