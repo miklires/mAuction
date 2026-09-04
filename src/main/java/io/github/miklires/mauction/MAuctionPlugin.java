@@ -33,11 +33,13 @@ public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor,
     private AuctionRepository repository;
     private Economy economy;
     private Messages messages;
+    private AuctionConfig auctionConfig;
     private volatile boolean ready;
     private final Map<UUID,Long> sellCooldowns=new ConcurrentHashMap<>();
 
     @Override public void onEnable() {
-        saveDefaultConfig();
+        auctionConfig = new AuctionConfig(this);
+        auctionConfig.load();
         messages = new Messages(this);
         RegisteredServiceProvider<Economy> provider = getServer().getServicesManager().getRegistration(Economy.class);
         if (provider == null) { getLogger().severe("Vault economy provider is required"); getServer().getPluginManager().disablePlugin(this); return; }
@@ -65,7 +67,7 @@ public final class MAuctionPlugin extends JavaPlugin implements CommandExecutor,
             case "search" -> {if(args.length<2){player.sendMessage(messages.text("usage-search"));return true;}open(player,String.join(" ",java.util.Arrays.copyOfRange(args,1,args.length)),0,AuctionRepository.SortOrder.NEWEST,false);}
             case "selling" -> open(player,"",0,AuctionRepository.SortOrder.NEWEST,true);
             case "cancel" -> { if(args.length<2){player.sendMessage(messages.text("usage-cancel"));return true;} cancel(player,args[1]); }
-            case "reload" -> { if(!player.hasPermission("mauction.admin")){player.sendMessage(messages.text("no-permission"));return true;} reloadConfig();messages.reload();player.sendMessage(messages.text("reloaded")); }
+            case "reload" -> { if(!player.hasPermission("mauction.admin")){player.sendMessage(messages.text("no-permission"));return true;} auctionConfig.load();messages.reload();player.sendMessage(messages.text("reloaded")); }
             default -> player.sendMessage(messages.text("usage"));
         }
         return true;

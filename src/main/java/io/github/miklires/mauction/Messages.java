@@ -16,13 +16,13 @@ final class Messages {
     void reload() {
         save("en_US"); save("ru_RU");
         english = load("en_US");
-        String locale = plugin.getConfig().getString("language", "en_US");
-        if (locale == null || !locale.matches("[A-Za-z]{2}_[A-Za-z]{2}")) locale = "en_US";
+        String requested = plugin.getConfig().getString("language", "en_US");
+        String locale = "ru_RU".equalsIgnoreCase(requested) ? "ru_RU" : "en_US";
         File file = new File(plugin.getDataFolder(), "lang/" + locale + ".yml");
         if (!file.isFile()) {
             plugin.getLogger().warning("Unknown language " + locale + "; using en_US");
             selected = english;
-        } else selected = YamlConfiguration.loadConfiguration(file);
+        } else { selected = YamlConfiguration.loadConfiguration(file); selected.setDefaults(english); }
     }
 
     String text(String key, Object... replacements) {
