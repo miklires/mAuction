@@ -6,7 +6,6 @@ Fast, persistent player marketplace for Paper, Purpur, and Folia servers.
 
 [![Paper](https://img.shields.io/badge/Available_for-Paper-222c31?style=for-the-badge)](https://papermc.io/software/paper)
 [![Purpur](https://img.shields.io/badge/Available_for-Purpur-5f2167?style=for-the-badge)](https://purpurmc.org/)
-[![Folia](https://img.shields.io/badge/Available_for-Folia-69c535?style=for-the-badge)](https://papermc.io/software/folia)
 
 [![Build](https://img.shields.io/github/actions/workflow/status/miklires/mAuction/build.yml?label=build)](https://github.com/miklires/mAuction/actions)
 ![Release](https://img.shields.io/badge/release-v1.2.0-0ea5e9)
