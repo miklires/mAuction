@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 - 2026-10-10
+
+- Added Minecraft 26.3 compatibility and verified the clean build and automated test suite against Paper API 26.3.
+
 ## 1.2.0 - 2026-09-04
 
 - Added database-side search, sorting, pagination, seller-limit enforcement, indexes, and schema versioning.

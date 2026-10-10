@@ -1,7 +1,7 @@
 name: mAuction
 version: ${version}
 main: io.github.miklires.mauction.MAuctionPlugin
-api-version: '26.2'
+api-version: '26.3'
 author: miklires
 description: Transactional player auction house
 folia-supported: true

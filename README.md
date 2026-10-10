@@ -10,7 +10,7 @@ Fast, persistent player marketplace for Paper, Purpur, and Folia servers.
 [![Build](https://img.shields.io/github/actions/workflow/status/miklires/mAuction/build.yml?label=build)](https://github.com/miklires/mAuction/actions)
 ![Release](https://img.shields.io/badge/release-v1.2.0-0ea5e9)
 ![Java](https://img.shields.io/badge/Java-25-5382a1)
-![Minecraft](https://img.shields.io/badge/Minecraft-26.2-62b47a)
+![Minecraft](https://img.shields.io/badge/Minecraft-26.3-62b47a)
 
 </div>
 
@@ -48,7 +48,7 @@ mAuction provides a clear inventory marketplace, fast item search, durable listi
 ## Requirements
 
 - Java 25
-- Paper, Purpur, or Folia 26.2
+- Paper, Purpur, or Folia 26.3
 - Vault and any Vault-compatible economy provider
 
 Vault acts as the economy bridge, so mAuction works with currency plugins that expose a Vault economy provider, including providers with optional Vault support.
