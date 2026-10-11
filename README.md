@@ -8,7 +8,7 @@ Fast, persistent player marketplace for Paper, Purpur, and Folia servers.
 [![Purpur](https://img.shields.io/badge/Available_for-Purpur-5f2167?style=for-the-badge)](https://purpurmc.org/)
 
 [![Build](https://img.shields.io/github/actions/workflow/status/miklires/mAuction/build.yml?label=build)](https://github.com/miklires/mAuction/actions)
-![Release](https://img.shields.io/badge/release-v1.2.0-0ea5e9)
+![Release](https://img.shields.io/badge/release-v1.2.1-0ea5e9)
 ![Java](https://img.shields.io/badge/Java-25-5382a1)
 ![Minecraft](https://img.shields.io/badge/Minecraft-26.3-62b47a)
 
@@ -55,7 +55,7 @@ Vault acts as the economy bridge, so mAuction works with currency plugins that e
 
 ## Quick start
 
-1. Install Vault, an economy provider, and `mAuction-1.2.0.jar`.
+1. Install Vault, an economy provider, and `mAuction-1.2.1.jar`.
 2. Start the server once.
 3. Adjust `plugins/mAuction/config.yml` if needed.
 4. Hold an item and run `/ah sell 1000`.
@@ -64,6 +64,6 @@ The default configuration is ready to use. Set `language: ru_RU` for Russian.
 
 ## Build
 
-Run `./gradlew clean build`. The release JAR is written to `build/libs/mAuction-1.2.0.jar`.
+Run `./gradlew clean build`. The release JAR is written to `build/libs/mAuction-1.2.1.jar`.
 
 MIT licensed.
